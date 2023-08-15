@@ -41,7 +41,11 @@ function convertHexColorToScheme(hexColor, schemeColor) {
     convertedRgbColor[2] = rgbColor[0];
   }
 
-  return convertColor.rgb.hex(convertedRgbColor);
+  // Convert the converted RGB color back to hex
+  const convertedHexColor = convertColor.rgb.hex(convertedRgbColor);
+
+  // Add '#' to the beginning of the hex color if not already present
+  return convertedHexColor.startsWith('#') ? convertedHexColor : `#${convertedHexColor}`;
 }
 
 // Function to replace placeholders in a string with user-provided values
@@ -51,28 +55,6 @@ function replacePlaceholdersWithValues(content, placeholders) {
     content = content.replace(regex, value);
   }
   return content;
-}
-
-// Function to get the Google Maps embed code for a given street address
-async function getGoogleMapsEmbedCode(address) {
-  const apiKey = 'YOUR_GOOGLE_MAPS_API_KEY';
-  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
-
-  try {
-    const response = await axios.get(url);
-    const location = response.data.results[0]?.geometry?.location;
-    if (location) {
-      const latitude = location.lat;
-      const longitude = location.lng;
-      return `<iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3807.8742754005966!2d${longitude}!3d${latitude}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x6d6dda452fcab65d%3A0x1f1b293584d1e986!2s${encodeURIComponent(address)}!5e0!3m2!1sen!2snz!4v1690029493073!5m2!1sen!2snz" width="600" height="450" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>`;
-    } else {
-      console.log(`Failed to get location details for "${address}"`);
-    }
-  } catch (error) {
-    console.error('An error occurred while fetching location details:', error.message);
-  }
-
-  return null;
 }
 
 // Main function to copy the folder and its contents with color conversion
@@ -99,32 +81,19 @@ async function copyFolderWithColorConversion() {
 
     const colorScheme = await promptUser('What color scheme would you like? (e.g., red, blue): ');
 
-    // Additional prompts for company name, description, email, phone, and location
+    const productOrService = await promptUser('Does the company sell products or services (p/s)? ');
+
     const companyName = await promptUser('Enter the company name: ');
     const companyDescription = await promptUser('Enter the company description: ');
     const email = await promptUser('Enter the email: ');
     const phone = await promptUser('Enter the phone number: ');
-
-    let location;
-    do {
-      location = await promptUser('Enter the location (Street Address): ');
-      if (location) {
-        const embedCode = await getGoogleMapsEmbedCode(location);
-        if (embedCode) {
-          location = embedCode;
-          break;
-        } else {
-          console.log(`Unsuccessfully set due to incorrect format: [Location]`);
-        }
-      }
-    } while (!location);
 
     const placeholders = {
       'company name': companyName,
       'description': companyDescription,
       'email': email,
       'phone': phone,
-      'location': location,
+      'products or services': productOrService === 'p' ? 'Products' : 'Services',
     };
 
     const sourceFolderPath = path.join(__dirname, sourceFolderName);
@@ -133,25 +102,22 @@ async function copyFolderWithColorConversion() {
     // Copy the entire folder and its contents to the destination folder
     await fs.copy(sourceFolderPath, destFolderPath);
 
-    // Check if a CSS file exists in the source folder
     const cssFilePath = path.join(sourceFolderPath, 'styles.css');
     if (fs.existsSync(cssFilePath)) {
       let cssContent = fs.readFileSync(cssFilePath, 'utf8');
       const hexColorRegex = /#[0-9a-fA-F]{6}/g;
       cssContent = cssContent.replace(hexColorRegex, (match) => convertHexColorToScheme(match, colorScheme));
-      cssContent = replacePlaceholdersWithValues(cssContent, placeholders); // Replace
-      // Replace placeholders in CSS content
+      cssContent = replacePlaceholdersWithValues(cssContent, placeholders);
       fs.writeFileSync(path.join(destFolderPath, 'styles.css'), cssContent, 'utf8');
     }
 
-    // Check if any other files exist in the source folder (excluding styles.css)
     const files = fs.readdirSync(sourceFolderPath);
     for (const file of files) {
       if (file !== 'styles.css') {
         const filePath = path.join(sourceFolderPath, file);
         if (fs.statSync(filePath).isFile()) {
           let fileContent = fs.readFileSync(filePath, 'utf8');
-          fileContent = replacePlaceholdersWithValues(fileContent, placeholders); // Replace placeholders in file content
+          fileContent = replacePlaceholdersWithValues(fileContent, placeholders);
           fs.writeFileSync(path.join(destFolderPath, file), fileContent, 'utf8');
         }
       }
